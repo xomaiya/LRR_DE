@@ -1,9 +1,10 @@
 import random
 from ridgeRegression import *
+from moleculToVector import StructDescription, DataSetMatrix
 
 
 class DE:
-    def __init__(self, dataset, struct_description, y):
+    def __init__(self, dataset: DataSetMatrix, struct_description: StructDescription, y):
         self.dataset = dataset
         self.y = y
         self.struct_description = struct_description
@@ -11,20 +12,23 @@ class DE:
     def f(self, x):
         l = x[0]
         thetas = x[1:]
-        err = RR_LOOCV(self.dataset, self.y, l, thetas)
+        err = RR_LOOCV(self.dataset, self.y, l, thetas, self.struct_description)
         # print(err)
         return err
 
     def f_for_population(self, P):
-        b = len(self.struct_description[0])
-        a = len(self.struct_description[1])
-        t = len(self.struct_description[2])
-        p = len(self.struct_description[3])
-        # ограничение для длин связей (> 0)
+        b = len(self.struct_description.bonds)
+        a = len(self.struct_description.angles)
+        t = len(self.struct_description.torsions)
+        p = len(self.struct_description.pairs)
+
+        # ограничение для длин связей (только положительные)
         P[:, 0:b] = np.abs(P[:, 0:b])
-        # ограничение для зарядов (от -5 до 5)
-        P[:, b + a + t + p:b + a + t + p*2] = np.clip(P[:, b + a + t + p:b + a + t + p*2], -5, 5)
+
+        # ограничение для зарядов (от -0.5 до 0.5)
+        P[:, b + a + t + p:b + a + t + p*2] = np.clip(P[:, b + a + t + p:b + a + t + p*2], -0.5, 0.5)
         return np.array([self.f(p) for p in P])
+
 
     def mutation(self, P, F):
         V = np.zeros_like(P)
