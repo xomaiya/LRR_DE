@@ -66,5 +66,11 @@ def xyz2bat2constr_H(coords, struct_description, thetas):
 
 xyz2bat2constr_H_map = vmap(xyz2bat2constr_H, (0, None, None))
 
-def constr_HH(bat, struct_description, thetas):
-    return jacfwd(constr_H(bat, struct_description[0], thetas))
+
+def xyz2bat2constr_HH(coords, struct_description, thetas):
+    constr_HH = jacfwd(xyz2bat2constr_H)
+    return np.transpose(constr_HH(coords, struct_description, thetas), (1, 2, 0))
+
+
+xyz2bat2constr_HH_map = vmap(xyz2bat2constr_HH, (0, None, None))
+
