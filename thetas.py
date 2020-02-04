@@ -21,7 +21,6 @@ def get_initial_thetas(path='test-Olesya/Initial_parameters.txt'):
     # тут запишем заряды для атомов
     # for i in range(splt[2] + 2, splt[3]):
     #     thetas.append(0)
-
     return thetas
 
 def get_initial_linear_params(path='test-Olesya/Initial_parameters.txt'):

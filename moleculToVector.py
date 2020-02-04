@@ -74,16 +74,19 @@ class StructDescription:
 
 class AmberCoefficients:
     def __init__(self, bonds_linear_coeffs, bonds_zero_values, angles_linear_coeffs, angles_zero_values,
-                 torsions_linear_coeffs, torsions_zero_phase, rmins, epsilons, qs):
+                 torsions_linear_coeffs, torsions_zero_phase, sigma_for_vdw, epsilons_for_vdw, qs, qq_coeffs, ns):
         self.bonds_linear_coeffs = bonds_linear_coeffs
         self.bonds_zero_values = bonds_zero_values
         self.angles_linear_coeffs = angles_linear_coeffs
         self.angles_zero_values = angles_zero_values
         self.torsions_linear_coeffs = torsions_linear_coeffs
         self.torsions_zero_phase = torsions_zero_phase
-        self.rmins = rmins
-        self.epsilons = epsilons
+        self.sigma_for_vdw = sigma_for_vdw
+        self.epsilons_for_vdw = epsilons_for_vdw
         self.qs = qs
+        self.qq_coeffs = qq_coeffs
+        self.ns = ns
+
 
 
 def get_struct_description(path='test-Olesya/Initial_parameters_with_numbers_and_dihedrals_only.txt'):
@@ -142,20 +145,29 @@ def get_struct_description(path='test-Olesya/Initial_parameters_with_numbers_and
         rmin_single.append(float(lines[i].split()[1]))
         epsilon_single.append(float(lines[i].split()[2]))
 
+    pairs_from_angles = [[i, k] for i, j, k in angles]
     pairs = []
     for i in range(0, len(atoms)):
         for j in range(0, i):
-            if [i, j] not in bonds and [j, i] not in bonds:
+            if [i, j] not in bonds and [j, i] not in bonds \
+                    and [i, j] not in pairs_from_angles and [j, i] not in pairs_from_angles:
                 pairs.append([i, j])
-    assert len(bonds) + len(pairs) == len(atoms) * (len(atoms) - 1) / 2
 
-    epsilons = []  # массив значений глубины ямы для сил Ван-дер-Ваальса
+    eps14_for_coloumb = 0.83333333333 * 332.0636
+    qq_coeffs = []
     for i, j in pairs:
-        epsilons.append(np.sqrt(epsilon_single[i] * epsilon_single[j]))
+        if [None for (a, _, _,b) in torsions if a == i and b == j or a == j and b == i]:
+             qq_coeffs.append(eps14_for_coloumb)
+        else:
+            qq_coeffs.append(1 * 332.0636)
 
-    rmins = []  # массив парных Rmin -- нелинейные коэффициенты для сил Ван-дер-Ваальса
-    for i, j in pairs:
-        rmins.append(0.5 * (rmin_single[i] + rmin_single[j]))
+    # epsilons_for_vdw = []  # массив значений глубины ямы для сил Ван-дер-Ваальса
+    # for i, j in pairs:
+    #     epsilons_for_vdw.append(np.sqrt(epsilon_single[i] * epsilon_single[j]))
+
+    # sigma_for_vdw = []  # массив парных Rmin -- нелинейные коэффициенты для сил Ван-дер-Ваальса (сигмы)
+    # for i, j in pairs:
+    #     sigma_for_vdw.append(0.5 * (rmin_single[i] + rmin_single[j]))
 
     qs = [0.538850, -0.140384, 0.037195, 0.037195, -0.005530, 0.031484, 0.031484, -0.184033, 0.069999, 0.069999,
           0.273603, -0.404638, 0.137648, 0.111164, -0.390786, 0.185296, 0.331572, -0.433865, 0.189131, 0.186116,
@@ -164,15 +176,20 @@ def get_struct_description(path='test-Olesya/Initial_parameters_with_numbers_and
           0.118775, -0.296884, 0.103144, 0.103144, 0.103144, -0.300885, 0.103898, 0.103898, 0.103898, -0.209174,
           0.104587, 0.104587, 0.104587, -0.209174, 0.104587, 0.104587, 0.104587]
 
-    struct_description = StructDescription(bonds=bonds, angles=angles, torsions=torsions, ns=ns, pairs=pairs,
-                                           atoms=atoms)
+    struct_description = StructDescription(bonds=np.array(bonds), angles=np.array(angles), torsions=np.array(torsions),
+                                           ns=np.array(ns), pairs=np.array(pairs), atoms=np.array(atoms))
 
-    amber_coefficients = AmberCoefficients(bonds_linear_coeffs=bonds_linear_coeffs, bonds_zero_values=bonds_zero_values,
-                                           angles_linear_coeffs=angles_linear_coeffs,
-                                           angles_zero_values=angles_zero_values,
-                                           torsions_linear_coeffs=torsions_linear_coeffs,
-                                           torsions_zero_phase=torsions_zero_phase, rmins=rmins, epsilons=epsilons,
-                                           qs=qs)
+    amber_coefficients = AmberCoefficients(bonds_linear_coeffs=np.array(bonds_linear_coeffs),
+                                           bonds_zero_values=np.array(bonds_zero_values),
+                                           angles_linear_coeffs=np.array(angles_linear_coeffs),
+                                           angles_zero_values=np.array(angles_zero_values),
+                                           torsions_linear_coeffs=np.array(torsions_linear_coeffs),
+                                           torsions_zero_phase=np.array(torsions_zero_phase),
+                                           sigma_for_vdw=np.array(rmin_single),
+                                           epsilons_for_vdw=np.array(epsilon_single),
+                                           qs=np.array(qs),
+                                           qq_coeffs=np.array(qq_coeffs),
+                                           ns=np.array(ns))
 
     return struct_description, amber_coefficients
 
@@ -198,15 +215,15 @@ def get_el_for_dataset(struct, struct_description):
 
     x = ([], [], [], [])
     for bond in struct_description.bonds:
-        x[0].append(obMol.GetAtom(bond[0] + 1).GetDistance(obMol.GetAtom(bond[1] + 1)))
+        x[0].append(obMol.GetAtom(int(bond[0]) + 1).GetDistance(obMol.GetAtom(int(bond[1]) + 1)))
     for angle in struct_description.angles:
-        x[1].append(0.0174533 * obMol.GetAngle(obMol.GetAtom(angle[0] + 1), obMol.GetAtom(angle[1] + 1),
-                                               obMol.GetAtom(angle[2] + 1)))
+        x[1].append(0.0174533 * obMol.GetAngle(obMol.GetAtom(int(angle[0]) + 1), obMol.GetAtom(int(angle[1]) + 1),
+                                               obMol.GetAtom(int(angle[2]) + 1)))
     for n, torsion in zip(struct_description.ns, struct_description.torsions):
-        x[2].append(0.0174533 * n * obMol.GetTorsion(obMol.GetAtom(torsion[0] + 1), obMol.GetAtom(torsion[1] + 1),
-                                                     obMol.GetAtom(torsion[2] + 1), obMol.GetAtom(torsion[3] + 1)))
+        x[2].append(0.0174533 * n * obMol.GetTorsion(obMol.GetAtom(int(torsion[0]) + 1), obMol.GetAtom(int(torsion[1]) + 1),
+                                                     obMol.GetAtom(int(torsion[2]) + 1), obMol.GetAtom(int(torsion[3]) + 1)))
     for pair in struct_description.pairs:
-        x[3].append(obMol.GetAtom(pair[0] + 1).GetDistance(obMol.GetAtom(pair[1] + 1)))
+        x[3].append(obMol.GetAtom(int(pair[0]) + 1).GetDistance(obMol.GetAtom(int(pair[1]) + 1)))
 
     return x
 
@@ -222,6 +239,15 @@ class DataSetMatrix:
         self.torsions_matrix = torsions_matrix
         self.pairs_matrix = pairs_matrix
         self.coords = coords
+
+    def __getitem__(self, item):
+        return DataSetMatrix(
+            self.bonds_matrix[item],
+            self.angles_matrix[item],
+            self.torsions_matrix[item],
+            self.pairs_matrix[item],
+            self.coords[item]
+        )
 
 
 def get_dataset(structs, struct_description):

@@ -1,6 +1,5 @@
 import numpy as np
 from moleculToVector import DataSetMatrix, StructDescription
-from tqdm.autonotebook import tqdm
 
 
 def constrH(dataset_matrix: DataSetMatrix, struct_description: StructDescription, thetas):
@@ -31,8 +30,8 @@ def constrH(dataset_matrix: DataSetMatrix, struct_description: StructDescription
     H[:, :b] = (dataset_matrix.bonds_matrix - thetas[0:b]) ** 2
     H[:, b: a + b] = (dataset_matrix.angles_matrix - thetas[b: a + b]) ** 2
     H[:, a + b: a + b + t] = (1 + np.cos(dataset_matrix.torsions_matrix - thetas[a + b: a + b + t]))
-    H[:, a + b + t: a + b + t + p] = (thetas[a + b + t: a + b + t + p] / dataset_matrix.pairs_matrix) ** 12 - \
-                                     2 * (thetas[a + b + t: a + b + t + p] / dataset_matrix.pairs_matrix) ** 6
+    H[:, a + b + t: a + b + t + p] = 4 * (thetas[a + b + t: a + b + t + p] / dataset_matrix.pairs_matrix) ** 12 - \
+                                     4   * (thetas[a + b + t: a + b + t + p] / dataset_matrix.pairs_matrix) ** 6
     H[:, a + b + t + p: a + b + t + p + p] = qq / dataset_matrix.pairs_matrix
     # thetas[a + b + t + p: a + b + t + p + p]
     stdH = H.std(axis=0, )
@@ -168,9 +167,13 @@ def constrHH(dataset: DataSetMatrix, struct_descr: StructDescription, thetas):
 
                 A = np.cross(rij, rjk)
                 B = np.cross(rjk, rkl)
-                dif = B - tors_c * A
                 A_n = np.linalg.norm(A)
                 B_n = np.linalg.norm(B)
+
+                A = A / A_n
+                B = B / B_n
+# !!!!!!!!!!!!!!!!!!!!!!!!! проверить формулы
+                dif = B - tors_c * A
 
                 if k // 3 == struct_descr.torsions[j][0]:
                     HH[k][i][j + b + a] = K / A_n * (rjk[(k + 1) % 3] * dif[(k + 2) % 3] - rjk[(k + 2) % 3] * dif[(k + 1) % 3])

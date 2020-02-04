@@ -1,26 +1,67 @@
 import random
 from ridgeRegression import *
-from moleculToVector import StructDescription, DataSetMatrix
+from moleculToVector import StructDescription, DataSetMatrix, AmberCoefficients
+from xyz2bat import xyz2bat2constr_H_map
 
 
 class DE:
-    def __init__(self, dataset: DataSetMatrix, struct_description: StructDescription, y):
+    def __init__(self, dataset: DataSetMatrix, struct_description: StructDescription, amber_coeffs: AmberCoefficients, y):
         self.dataset = dataset
         self.y = y
         self.struct_description = struct_description
+        self.amber_coeffs = amber_coeffs
+
+    # def f(self, x):
+    #     l = x[0]
+    #     thetas = x[1:]
+    #     err = RR_LOOCV(self.dataset, self.y, l, thetas, self.struct_description)
+    #     return err
 
     def f(self, x):
-        l = x[0]
-        thetas = x[1:]
-        err = RR_LOOCV(self.dataset, self.y, l, thetas, self.struct_description)
-        # print(err)
+        l_bonds = len(self.amber_coeffs.bonds_zero_values)
+        l_angles = len(self.amber_coeffs.angles_zero_values)
+        l_torsions = len(self.amber_coeffs.torsions_zero_phase)
+        l_ns = len(self.amber_coeffs.ns)
+        l_q = len(self.amber_coeffs.qs)
+        l_sigma = len(self.amber_coeffs.sigma_for_vdw)
+        l_epsilon = len(self.amber_coeffs.epsilons_for_vdw)
+
+        l, x = x[0], x[1:]
+        bonds, x = x[:l_bonds], x[l_bonds:]
+        angles, x = x[:l_angles], x[l_angles:]
+        torsions, x = x[:l_torsions], x[l_torsions:]
+        # ns, x = x[:l_ns], x[l_ns:]
+        q, x = x[:l_q], x[l_q:]
+        sigma_for_vdw, x = x[:l_sigma], x[l_sigma:]
+        epsilon_for_vdw, x = x[:l_epsilon], x[l_epsilon:]
+
+        assert len(x) == 0
+
+        thetas = {'bonds': np.abs(bonds),
+                  'angles': angles,
+                  'torsions': torsions,
+                  # 'ns': ns,
+                  'q': q,
+                  'sigma_for_vdw': np.abs(sigma_for_vdw),
+                  'epsilon_for_vdw': np.abs(epsilon_for_vdw)}
+
+        H = xyz2bat2constr_H_map(self.dataset.coords, self.struct_description, thetas)
+        _, y_est = RidgeRegression(H, self.y, l)
+        err = LOOCV(H, self.y, y_est)
+        # print(np.isnan(H).sum())
+        # print(np.where(np.isnan(H[0])))
         return err
+
+
 
     def f_for_population(self, P):
         b = len(self.struct_description.bonds)
         a = len(self.struct_description.angles)
         t = len(self.struct_description.torsions)
         p = len(self.struct_description.pairs)
+
+        # TODO: считывать теты из файла и варьировать их относительно считанных: |delta bond_0| < 0.5 A,
+        #  |delta angle_0| < 15 grad, |q| < 0.5 Col and sum(q) < 1, |sigma| < 0.8 A
 
         # ограничение для длин связей (только положительные)
         P[:, 0:b] = np.abs(P[:, 0:b])
