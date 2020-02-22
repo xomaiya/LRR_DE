@@ -1,21 +1,19 @@
 import random
-from ridgeRegression import *
-from moleculToVector import StructDescription, DataSetMatrix, AmberCoefficients
-from xyz2bat import xyz2bat2constr_H_map
+import time
+import numpy as np
+import scipy.sparse
+
+from ridgeRegression import RidgeRegression, LOOCV
+from moleculToVector import StructDescription, AmberCoefficients
+from xyz2bat import xyz2bat2constr_H_map, xyz2bat2constr_HH_map
 
 
 class DE:
-    def __init__(self, dataset: DataSetMatrix, struct_description: StructDescription, amber_coeffs: AmberCoefficients, y):
-        self.dataset = dataset
+    def __init__(self, all_coords, struct_description: StructDescription, amber_coeffs: AmberCoefficients, y):
+        self.all_coords = all_coords
         self.y = y
         self.struct_description = struct_description
         self.amber_coeffs = amber_coeffs
-
-    # def f(self, x):
-    #     l = x[0]
-    #     thetas = x[1:]
-    #     err = RR_LOOCV(self.dataset, self.y, l, thetas, self.struct_description)
-    #     return err
 
     def f(self, x):
         l_bonds = len(self.amber_coeffs.bonds_zero_values)
@@ -45,11 +43,17 @@ class DE:
                   'sigma_for_vdw': np.abs(sigma_for_vdw),
                   'epsilon_for_vdw': np.abs(epsilon_for_vdw)}
 
-        H = xyz2bat2constr_H_map(self.dataset.coords, self.struct_description, thetas)
-        _, y_est = RidgeRegression(H, self.y, l)
-        err = LOOCV(H, self.y, y_est)
-        # print(np.isnan(H).sum())
-        # print(np.where(np.isnan(H[0])))
+        start_time = time.time()
+        HH = xyz2bat2constr_HH_map(self.all_coords, self.struct_description.as_dict(), thetas)
+        print(f'HH construction time: {time.time() - start_time}')
+        HH = HH.reshape(-1, HH.shape[-1])
+        HH = scipy.sparse.csr_matrix(HH)
+        _, y_est = RidgeRegression(HH, self.y, l)
+        err = LOOCV(HH, self.y, y_est)
+        print(f'RR: {time.time() - start_time}')
+        print(f'err: {err}')
+        print()
+
         return err
 
 

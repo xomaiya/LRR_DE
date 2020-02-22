@@ -1,4 +1,5 @@
-import openbabel as ob
+# import openbabel as ob
+from jax.tree_util import register_pytree_node
 from tqdm.autonotebook import tqdm
 import numpy as np
 
@@ -71,6 +72,15 @@ class StructDescription:
         self.pairs = pairs
         self.atoms = atoms
 
+    def as_dict(self):
+        return {'bonds': self.bonds, 'angles': self.angles, 'torsions': self.torsions,
+                'ns': self.ns, 'pairs': self.pairs, 'atoms': self.atoms}
+
+# register_pytree_node(StructDescription,
+#                      lambda xs: ((xs.bonds, xs.angles, xs.torsions, xs.ns, xs.pairs, xs.atoms), None),
+#                      lambda _, xs: StructDescription(*xs)
+#                     )
+
 
 class AmberCoefficients:
     def __init__(self, bonds_linear_coeffs, bonds_zero_values, angles_linear_coeffs, angles_zero_values,
@@ -129,6 +139,12 @@ def get_struct_description(path='test-Olesya/Initial_parameters_with_numbers_and
     torsions = []
     torsions_linear_coeffs = []
     torsions_zero_phase = []
+
+    register_pytree_node(StructDescription,
+                     lambda xs: ((xs.bonds, xs.angles, xs.torsions, xs.ns, xs.pairs, xs.atoms), None),
+                     lambda _, xs: StructDescription(*xs)
+                    )
+
     ns = []
     for i in range(splt[1] + 2, splt[2]):
         torsions.append([int(j) - 1 for j in lines[i].split()[0:4]])

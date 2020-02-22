@@ -1,4 +1,5 @@
 import numpy as np
+from jax import jit
 from moleculToVector import DataSetMatrix, StructDescription
 
 
@@ -50,15 +51,20 @@ def RidgeRegression(H, y, l):
     """
     Nf = H.shape[1]
     I = np.eye(Nf)
-    C = np.linalg.inv(H.T.dot(H) + 2 * l * I).dot(H.T.dot(y))
-    y_est = H.dot(C)
+    A = np.array(np.linalg.inv(H.T.dot(H) + 2 * l * I))
+    B = np.array(H.T.dot(y))
+    C = A.dot(B)
+
+    y_est = np.array(H.dot(C))
     return C, y_est
 
 
 def LOOCV(H, y, y_est):
     M = H.shape[0]
     varH = np.linalg.norm(H - H.mean(axis=0), axis=1) ** 2
+    # print(varH.sum())
     h = 1 / M + varH / varH.sum()
+    # print(f'h: {h}')
     loocv = 1 / M * (((y - y_est) / (1 - h)) ** 2).sum()
     return loocv
 
