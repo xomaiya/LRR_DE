@@ -97,6 +97,23 @@ class AmberCoefficients:
         self.qq_coeffs = qq_coeffs
         self.ns = ns
 
+    def get_linear(self):
+        return np.concatenate([self.bonds_linear_coeffs,
+                               self.angles_linear_coeffs,
+                               self.torsions_linear_coeffs,
+                               self.qq_coeffs[:2],
+                               ])
+
+    def get_theta_dict(self):
+        return {'bonds': self.bonds_zero_values,
+                'angles': self.angles_zero_values,
+                'torsions': self.torsions_zero_phase,
+                'ns': self.ns,
+                'q': self.qs,
+                'sigma_for_vdw': self.sigma_for_vdw,
+                'epsilon_for_vdw': self.epsilons_for_vdw
+                }
+
 
 
 def get_struct_description(path='test-Olesya/Initial_parameters_with_numbers_and_dihedrals_only.txt'):

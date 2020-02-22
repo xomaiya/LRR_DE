@@ -14,19 +14,6 @@ def calc_angles(xyz: np.ndarray, struct_descr_dict):
     return np.arccos(np.clip(cos, -1, 1))
 
 
-# def calc_torsions(xyz: np.ndarray, struct_descr_dict):
-#     r_ij = xyz[struct_descr_dict['torsions'][:, 1]] - xyz[struct_descr_dict['torsions'][:, 0]]
-#     r_jk = xyz[struct_descr_dict['torsions'][:, 2]] - xyz[struct_descr_dict['torsions'][:, 1]]
-#     r_kl = xyz[struct_descr_dict['torsions'][:, 3]] - xyz[struct_descr_dict['torsions'][:, 2]]
-#     A = np.cross(r_ij, r_jk)
-#     B = np.cross(r_jk, r_kl)
-#     cos = np.sum(A * B, axis=1) / (np.linalg.norm(A, axis=1) * np.linalg.norm(B, axis=1))
-#     # print((cos**2 > 0.99).sum())
-#     # print(f'cos: {cos}')
-#     return np.arccos(np.clip(cos, -1, 1))
-#     return struct_descr_dict['ns'] * np.arccos(np.clip(cos, -1, 1))
-
-
 def calc_torsions(xyz: np.ndarray, struct_descr_dict):
     b1 = xyz[struct_descr_dict['torsions'][:, 1]] - xyz[struct_descr_dict['torsions'][:, 0]]
     b2 = xyz[struct_descr_dict['torsions'][:, 2]] - xyz[struct_descr_dict['torsions'][:, 1]]
@@ -35,16 +22,6 @@ def calc_torsions(xyz: np.ndarray, struct_descr_dict):
     b12 = np.cross(b1, b2)
     b23 = np.cross(b2, b3)
     return np.arctan2((np.cross(b12, b23) * b2).sum(axis=-1) / np.linalg.norm(b2, axis=-1), (b12 * b23).sum(axis=-1))
-
-    # r_ij = xyz[struct_descr_dict['torsions'][:, 1]] - xyz[struct_descr_dict['torsions'][:, 0]]
-    # r_jk = xyz[struct_descr_dict['torsions'][:, 2]] - xyz[struct_descr_dict['torsions'][:, 1]]
-    # r_kl = xyz[struct_descr_dict['torsions'][:, 3]] - xyz[struct_descr_dict['torsions'][:, 2]]
-    # A = np.cross(r_ij, r_jk)
-    # B = np.cross(r_jk, r_kl)
-    # C = np.cross(r_jk, A)
-    # sin = np.linalg.norm(np.cross(C, B), axis=1) / (np.linalg.norm(C, axis=1) * np.linalg.norm(B, axis=1))
-    # # return struct_descr_dict['ns'] * (np.arcsin(np.clip(sin, -1, 1)) + np.pi / 2)
-    # return np.arcsin(np.clip(sin, -1, 1)) + np.pi / 2
 
 
 def calc_pairs(xyz: np.ndarray, struct_descr_dict):
@@ -67,12 +44,6 @@ def xyz2bat(xyz: np.ndarray, struct_description):
     bonds = calc_bonds(xyz, struct_description)
     angles = calc_angles(xyz, struct_description)
     torsions = calc_torsions(xyz, struct_description)
-    # torsions2 = calc_torsions(xyz, struct_description)
-    # print('!!!!!!')
-    # print(np.minimum((torsions - torsions2)**2, (torsions + torsions2)**2))
-    # print(np.linalg.norm(torsions - torsions2))
-    # print(np.where(np.abs(torsions - torsions2) > 0.01))
-    # print("!!!!!")
     pairs = calc_pairs(xyz, struct_description)
     return {'bonds': bonds, 'angles': angles, 'torsions': torsions, 'pairs': pairs}
 
@@ -84,9 +55,7 @@ def constr_H(bat, struct_description, thetas):
     A, B = calc_A_B_for_vdw(thetas, struct_description)
     vdw_part = A / bat['pairs'] ** 12 - B / bat['pairs'] ** 6
     coulomb_part = calc_qq(thetas, struct_description) / bat['pairs']
-    return torsions_part
-    H = np.concatenate([bonds_part, angles_part, torsions_part, vdw_part, coulomb_part])
-    # H = np.concatenate([bonds_part, angles_part, vdw_part, coulomb_part])
+    H = np.concatenate([bonds_part, angles_part, torsions_part, vdw_part.sum(keepdims=True), coulomb_part.sum(keepdims=True)])
     return H
 
 

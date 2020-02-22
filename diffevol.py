@@ -6,20 +6,21 @@ import scipy.sparse
 from ridgeRegression import RidgeRegression, LOOCV
 from moleculToVector import StructDescription, AmberCoefficients
 from xyz2bat import xyz2bat2constr_H_map, xyz2bat2constr_HH_map
+import matplotlib.pyplot as plt
 
 
 class DE:
-    def __init__(self, all_coords, struct_description: StructDescription, amber_coeffs: AmberCoefficients, y):
+    def __init__(self, all_coords, struct_description: StructDescription, amber_coeffs: AmberCoefficients, y, test_structs):
         self.all_coords = all_coords
         self.y = y
         self.struct_description = struct_description
         self.amber_coeffs = amber_coeffs
+        self.test_structs = test_structs
 
-    def f(self, x):
+    def genes2thetas(self, x):
         l_bonds = len(self.amber_coeffs.bonds_zero_values)
         l_angles = len(self.amber_coeffs.angles_zero_values)
         l_torsions = len(self.amber_coeffs.torsions_zero_phase)
-        l_ns = len(self.amber_coeffs.ns)
         l_q = len(self.amber_coeffs.qs)
         l_sigma = len(self.amber_coeffs.sigma_for_vdw)
         l_epsilon = len(self.amber_coeffs.epsilons_for_vdw)
@@ -28,7 +29,6 @@ class DE:
         bonds, x = x[:l_bonds], x[l_bonds:]
         angles, x = x[:l_angles], x[l_angles:]
         torsions, x = x[:l_torsions], x[l_torsions:]
-        # ns, x = x[:l_ns], x[l_ns:]
         q, x = x[:l_q], x[l_q:]
         sigma_for_vdw, x = x[:l_sigma], x[l_sigma:]
         epsilon_for_vdw, x = x[:l_epsilon], x[l_epsilon:]
@@ -38,25 +38,21 @@ class DE:
         thetas = {'bonds': np.abs(bonds),
                   'angles': angles,
                   'torsions': torsions,
-                  # 'ns': ns,
                   'q': q,
                   'sigma_for_vdw': np.abs(sigma_for_vdw),
                   'epsilon_for_vdw': np.abs(epsilon_for_vdw)}
+        return l, thetas
 
-        start_time = time.time()
+    def f(self, x):
+        l, thetas = self.genes2thetas(x)
+
         HH = xyz2bat2constr_HH_map(self.all_coords, self.struct_description.as_dict(), thetas)
-        print(f'HH construction time: {time.time() - start_time}')
         HH = HH.reshape(-1, HH.shape[-1])
         HH = scipy.sparse.csr_matrix(HH)
         _, y_est = RidgeRegression(HH, self.y, l)
         err = LOOCV(HH, self.y, y_est)
-        print(f'RR: {time.time() - start_time}')
-        print(f'err: {err}')
-        print()
 
         return err
-
-
 
     def f_for_population(self, P):
         b = len(self.struct_description.bonds)
@@ -69,11 +65,10 @@ class DE:
 
         # ограничение для длин связей (только положительные)
         P[:, 0:b] = np.abs(P[:, 0:b])
-
         # ограничение для зарядов (от -0.5 до 0.5)
         P[:, b + a + t + p:b + a + t + p*2] = np.clip(P[:, b + a + t + p:b + a + t + p*2], -0.5, 0.5)
-        return np.array([self.f(p) for p in P])
 
+        return np.array([self.f(p) for p in P])
 
     def mutation(self, P, F):
         V = np.zeros_like(P)
@@ -124,4 +119,38 @@ class DE:
             U = self.crossover(V, P, Cr)
             P, fp = self.selection(P, fp, U)
             self.best_p = P[np.argmin(fp)]
-            print(np.min(fp))
+            self.test_for_best_p()
+            # print(np.min(fp))
+
+    def test(self, C, thetas):
+        """
+        Функция, которая рассчитывает корреляцию между полученными энергиями для тестовых структур и QM-энергиями
+        :return:
+        """
+
+        energy_test_qm = np.array([struct.energy for struct in self.test_structs])
+        forces_test_qm = np.array([struct.forces for struct in self.test_structs])
+
+        test_all_coords = np.array([struct.coords for struct in self.test_structs])
+        H = xyz2bat2constr_H_map(test_all_coords, self.struct_description.as_dict(), thetas)
+        HH = xyz2bat2constr_HH_map(test_all_coords, self.struct_description.as_dict(), thetas)
+        # HH = HH.reshape(-1, HH.shape[-1])
+
+        energy_test_mm = H.dot(C)
+        forces_test_mm = HH.dot(C)
+
+        print(f'forces error for test train:\t{np.linalg.norm(forces_test_qm - forces_test_mm)}')
+        print(f'energy correlation for test train:\t{np.corrcoef(energy_test_qm, energy_test_mm)[0][1]}')
+        plt.scatter(energy_test_qm, energy_test_mm)
+        plt.show()
+        print()
+        print()
+
+    def test_for_best_p(self):
+        l, thetas = self.genes2thetas(self.best_p)
+        HH = xyz2bat2constr_HH_map(self.all_coords, self.struct_description.as_dict(), thetas)
+        HH = HH.reshape(-1, HH.shape[-1])
+        C, energy_est = RidgeRegression(scipy.sparse.csr_matrix(HH), self.y, l)
+
+        print(f'forces error for train train:\t{np.linalg.norm(HH.dot(C) - self.y)}')
+        self.test(C, thetas)
