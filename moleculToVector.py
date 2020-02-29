@@ -3,6 +3,7 @@ from jax.tree_util import register_pytree_node
 from tqdm.autonotebook import tqdm
 import numpy as np
 
+
 class StructXYZ:
     def __init__(self, coords, atoms, energy, forces):
         self.coords = coords
@@ -76,6 +77,7 @@ class StructDescription:
         return {'bonds': self.bonds, 'angles': self.angles, 'torsions': self.torsions,
                 'ns': self.ns, 'pairs': self.pairs, 'atoms': self.atoms}
 
+
 # register_pytree_node(StructDescription,
 #                      lambda xs: ((xs.bonds, xs.angles, xs.torsions, xs.ns, xs.pairs, xs.atoms), None),
 #                      lambda _, xs: StructDescription(*xs)
@@ -104,6 +106,17 @@ class AmberCoefficients:
                                self.qq_coeffs[:2],
                                ])
 
+    def get_theta(self):
+        return np.concatenate([0,
+                               self.bonds_zero_values,
+                               self.angles_zero_values,
+                               self.torsions_zero_phase,
+                               # self.ns,
+                               self.qs,
+                               self.sigma_for_vdw,
+                               self.epsilons_for_vdw
+                               ])
+
     def get_theta_dict(self):
         return {'bonds': self.bonds_zero_values,
                 'angles': self.angles_zero_values,
@@ -113,7 +126,6 @@ class AmberCoefficients:
                 'sigma_for_vdw': self.sigma_for_vdw,
                 'epsilon_for_vdw': self.epsilons_for_vdw
                 }
-
 
 
 def get_struct_description(path='test-Olesya/Initial_parameters_with_numbers_and_dihedrals_only.txt'):
@@ -158,9 +170,9 @@ def get_struct_description(path='test-Olesya/Initial_parameters_with_numbers_and
     torsions_zero_phase = []
 
     register_pytree_node(StructDescription,
-                     lambda xs: ((xs.bonds, xs.angles, xs.torsions, xs.ns, xs.pairs, xs.atoms), None),
-                     lambda _, xs: StructDescription(*xs)
-                    )
+                         lambda xs: ((xs.bonds, xs.angles, xs.torsions, xs.ns, xs.pairs, xs.atoms), None),
+                         lambda _, xs: StructDescription(*xs)
+                         )
 
     ns = []
     for i in range(splt[1] + 2, splt[2]):
@@ -189,8 +201,8 @@ def get_struct_description(path='test-Olesya/Initial_parameters_with_numbers_and
     eps14_for_coloumb = 0.83333333333 * 332.0636
     qq_coeffs = []
     for i, j in pairs:
-        if [None for (a, _, _,b) in torsions if a == i and b == j or a == j and b == i]:
-             qq_coeffs.append(eps14_for_coloumb)
+        if [None for (a, _, _, b) in torsions if a == i and b == j or a == j and b == i]:
+            qq_coeffs.append(eps14_for_coloumb)
         else:
             qq_coeffs.append(1 * 332.0636)
 
@@ -253,8 +265,9 @@ def get_el_for_dataset(struct, struct_description):
         x[1].append(0.0174533 * obMol.GetAngle(obMol.GetAtom(int(angle[0]) + 1), obMol.GetAtom(int(angle[1]) + 1),
                                                obMol.GetAtom(int(angle[2]) + 1)))
     for n, torsion in zip(struct_description.ns, struct_description.torsions):
-        x[2].append(0.0174533 * n * obMol.GetTorsion(obMol.GetAtom(int(torsion[0]) + 1), obMol.GetAtom(int(torsion[1]) + 1),
-                                                     obMol.GetAtom(int(torsion[2]) + 1), obMol.GetAtom(int(torsion[3]) + 1)))
+        x[2].append(
+            0.0174533 * n * obMol.GetTorsion(obMol.GetAtom(int(torsion[0]) + 1), obMol.GetAtom(int(torsion[1]) + 1),
+                                             obMol.GetAtom(int(torsion[2]) + 1), obMol.GetAtom(int(torsion[3]) + 1)))
     for pair in struct_description.pairs:
         x[3].append(obMol.GetAtom(int(pair[0]) + 1).GetDistance(obMol.GetAtom(int(pair[1]) + 1)))
 
